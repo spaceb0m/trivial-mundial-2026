@@ -1,0 +1,10 @@
+# Herramientas locales / harness
+.superpowers/
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# Sistema
+.DS_Store

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7B2FF7">
+<title>Trivial Mundial 2026</title>
+<!-- Open Graph: previsualización al compartir el enlace. Al publicar, pon og:image
+     con la URL ABSOLUTA de una imagen (1200x630) alojada junto a la web. -->
+<meta property="og:title" content="Trivial Mundial 2026">
+<meta property="og:description" content="48 selecciones, 2.400 preguntas. ¿Aguantas los 7 partidos hasta el título?">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: { vio: '#7B2FF7', mag: '#FF2E92', cian: '#00E5FF', sol: '#FFE45E', noche: '#1a1140' } } },
+  }
+</script>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #fff; background: #2b0f4a; overflow-x: hidden; -webkit-tap-highlight-color: transparent;
+  }
+  .bg-wrap { position: fixed; inset: 0; z-index: -1; background: linear-gradient(150deg,#3a1078 0%,#7B2FF7 45%,#9d1f8e 100%); }
+  .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .55; }
+  .blob.a { width: 46vw; height: 46vw; background: #FF2E92; top: -10vw; right: -8vw; }
+  .blob.b { width: 40vw; height: 40vw; background: #00E5FF; bottom: -12vw; left: -10vw; opacity:.4; }
+  .blob.c { width: 28vw; height: 28vw; background: #7B2FF7; top: 40%; left: 55%; }
+  .glass { background: rgba(255,255,255,.10); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.16); }
+  .fade-in { animation: fade .45s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .pop { animation: pop .3s cubic-bezier(.2,.8,.3,1.4) both; }
+  @keyframes pop { from { transform: scale(.9); opacity:.4; } to { transform: scale(1); opacity:1; } }
+  .opt:active { transform: scale(.985); }
+  .opt { transition: background .15s, border-color .15s, transform .08s; }
+  .shake { animation: shake .4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .cuenta { width: 0; animation: cuenta linear forwards; }
+  @keyframes cuenta { from { width: 0 } to { width: 100% } }
+  .scroll-y { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.3) transparent; }
+  .scroll-y::-webkit-scrollbar { width: 8px; }
+  .scroll-y::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 8px; }
+  .flag { box-shadow: 0 2px 10px rgba(0,0,0,.35); border-radius: 5px; object-fit: cover; background:rgba(255,255,255,.1); }
+  .titulo { letter-spacing: -.02em; text-shadow: 0 4px 24px rgba(0,0,0,.25); }
+  .grad-text { background: linear-gradient(90deg,#FFE45E,#FFB627); -webkit-background-clip: text; background-clip: text; color: transparent; }
+</style>
+</head>
+<body>
+  <div class="bg-wrap"><div class="blob a"></div><div class="blob b"></div><div class="blob c"></div></div>
+  <main id="app" class="min-h-screen w-full max-w-3xl mx-auto px-4 py-6 flex flex-col"></main>
+
+<script>
+"use strict";
+
+const FICHERO = "preguntas-mundial-2026.json";
+const PREGUNTAS_POR_RONDA = 7;
+
+// Camino al título: 3 partidos de grupos (fáciles) → eliminatorias (más difíciles).
+const ETAPAS = [
+  { nombre: "Fase de grupos", dif: "facil" },
+  { nombre: "Fase de grupos", dif: "facil" },
+  { nombre: "Fase de grupos", dif: "facil" },
+  { nombre: "Octavos de final", dif: "media" },
+  { nombre: "Cuartos de final", dif: "dificil" },
+  { nombre: "Semifinal", dif: "dificil" },
+  { nombre: "Final", dif: "dificil" },
+];
+
+const CAT_INFO = {
+  clubes:       { emoji: "🏟️", label: "Clubes" },
+  posiciones:   { emoji: "⚽", label: "Posiciones" },
+  edades:       { emoji: "🎂", label: "Edades" },
+  convocatoria: { emoji: "🌍", label: "Convocatoria" },
+  agregados:    { emoji: "📊", label: "Plantilla" },
+};
+
+const HITOS = {
+  7: { emoji: "🏆", titulo: "¡Campeón del Mundo!", sub: "Pleno absoluto. Levantas la copa." },
+  6: { emoji: "🥈", titulo: "Finalista", sub: "A un solo paso de la gloria." },
+  5: { emoji: "🎖️", titulo: "Semifinalista", sub: "Entre las cuatro mejores." },
+  4: { emoji: "⚔️", titulo: "Cuartos de final", sub: "Buen torneo, te quedaste cerca." },
+  3: { emoji: "👏", titulo: "Octavos de final", sub: "Superaste la fase de grupos." },
+  2: { emoji: "😅", titulo: "Fase de grupos", sub: "Eliminado pronto. ¡Revancha!" },
+  1: { emoji: "😅", titulo: "Fase de grupos", sub: "Eliminado pronto. ¡Revancha!" },
+  0: { emoji: "🧹", titulo: "Fase de grupos", sub: "A repasar las plantillas..." },
+};
+
+let DATA = null;
+let state = {};
+const app = document.getElementById("app");
+
+// ---------- utilidades ----------
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const sample = (arr, n) => shuffle(arr.slice()).slice(0, n);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+// Prepara una pregunta: rebaraja las 4 opciones y recalcula el índice de la correcta.
+function prep(q, sel, etapa) {
+  const textoCorrecto = q.opciones[q.respuesta_correcta];
+  const opciones = shuffle(q.opciones.slice());
+  return {
+    enunciado: q.enunciado, categoria: q.categoria, dificultad: q.dificultad, etapa,
+    opciones, correcta: opciones.indexOf(textoCorrecto), pais: sel.pais, bandera: sel.bandera,
+  };
+}
+
+// Orden de preferencia de dificultad (con fallback) según la etapa.
+function ordenDif(dif) {
+  if (dif === "facil") return ["facil", "media", "dificil"];
+  if (dif === "dificil") return ["dificil", "media", "facil"];
+  return ["media", "facil", "dificil"];
+}
+
+function nuevaRondaSeleccion(sel) {
+  const pools = { facil: [], media: [], dificil: [] };
+  sel.preguntas.forEach((q) => pools[q.dificultad].push(q));
+  Object.values(pools).forEach(shuffle);
+  return ETAPAS.map((e) => {
+    for (const d of ordenDif(e.dif)) if (pools[d].length) return pools[d].pop();
+    return null;
+  }).map((q, i) => prep(q, sel, ETAPAS[i].nombre));
+}
+
+function nuevaRondaMezcla() {
+  const sels = sample(DATA.selecciones, PREGUNTAS_POR_RONDA);
+  return sels.map((s, i) => {
+    let elegida = null;
+    for (const d of ordenDif(ETAPAS[i].dif)) {
+      const cand = s.preguntas.filter((p) => p.dificultad === d);
+      if (cand.length) { elegida = cand[Math.floor(Math.random() * cand.length)]; break; }
+    }
+    return prep(elegida, s, ETAPAS[i].nombre);
+  });
+}
+
+// ---------- navegación ----------
+function ir(pantalla, extra = {}) {
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  state = Object.assign(state, { pantalla }, extra);
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+function render() {
+  if (state.pantalla === "inicio") return pantallaInicio();
+  if (state.pantalla === "selector") return pantallaSelector();
+  if (state.pantalla === "ronda") return pantallaRonda();
+  if (state.pantalla === "resultado") return pantallaResultado();
+}
+
+// ---------- pantalla: inicio ----------
+function pantallaInicio() {
+  app.innerHTML = `
+    <div class="flex-1 flex flex-col items-center justify-center text-center fade-in py-6">
+      <div class="text-xs sm:text-sm font-bold tracking-[0.3em] uppercase text-white/80">Canadá · México · Estados Unidos</div>
+      <h1 class="titulo font-black leading-[0.92] mt-3 text-5xl sm:text-7xl">TRIVIAL<br>MUNDIAL <span class="grad-text">2026</span></h1>
+      <p class="mt-5 text-white/90 max-w-md text-base sm:text-lg font-medium">48 selecciones · 2.400 preguntas · 100% datos reales. ¿Aguantas los 7 partidos hasta el título?</p>
+      <div class="w-full max-w-md mt-9 flex flex-col gap-4">
+        <button data-act="selector" class="opt glass rounded-2xl p-5 text-left flex items-center gap-4 hover:bg-white/20">
+          <span class="text-3xl">🌍</span>
+          <span><span class="block text-lg font-extrabold">Jugar una selección</span><span class="block text-sm text-white/75">Elige tu equipo y disputa su camino al título</span></span>
+        </button>
+        <button data-act="mezcla" class="opt rounded-2xl p-5 text-left flex items-center gap-4 text-noche font-bold" style="background:linear-gradient(90deg,#FFE45E,#FFB627)">
+          <span class="text-3xl">🎲</span>
+          <span><span class="block text-lg font-extrabold">Reto mezcla</span><span class="block text-sm text-noche/70">7 preguntas de 7 selecciones al azar</span></span>
+        </button>
+      </div>
+    </div>
+    <footer class="text-center text-white/50 text-xs mt-8">Datos verificados de Wikipedia · Edades al 11 jun 2026</footer>
+  `;
+  app.querySelector('[data-act="selector"]').onclick = () => ir("selector");
+  app.querySelector('[data-act="mezcla"]').onclick = () => empezarRonda("mezcla", null);
+}
+
+// ---------- pantalla: selector ----------
+function pantallaSelector() {
+  const sels = DATA.selecciones.slice().sort((a, b) => a.pais.localeCompare(b.pais, "es"));
+  const tarjetas = sels.map((s, i) => `
+    <button data-i="${i}" class="opt glass rounded-xl p-3 flex flex-col items-center gap-2 hover:bg-white/20">
+      <img class="flag w-14 h-9" loading="lazy" src="${esc(s.bandera)}" alt="${esc(s.pais)}">
+      <span class="text-[13px] font-semibold leading-tight text-center">${esc(s.pais)}</span>
+    </button>`).join("");
+  app.innerHTML = `
+    <div class="fade-in flex flex-col flex-1 min-h-0">
+      <div class="flex items-center gap-3 mb-4">
+        <button data-act="back" class="opt glass rounded-full w-10 h-10 grid place-items-center text-xl shrink-0">←</button>
+        <div><h2 class="text-2xl font-black titulo">Elige tu selección</h2><p class="text-white/70 text-sm">48 equipos · escribe para filtrar</p></div>
+      </div>
+      <input id="buscador" type="search" inputmode="search" placeholder="Buscar selección…" autocomplete="off"
+        class="glass rounded-xl px-4 py-3 mb-4 outline-none placeholder-white/50 focus:border-cian/70">
+      <div id="grid" class="scroll-y grid grid-cols-3 sm:grid-cols-4 gap-3 pb-4">${tarjetas}</div>
+    </div>`;
+  app.querySelector('[data-act="back"]').onclick = () => ir("inicio");
+  const grid = app.querySelector("#grid");
+  grid.querySelectorAll("[data-i]").forEach((btn) => { btn.onclick = () => empezarRonda("seleccion", sels[+btn.dataset.i]); });
+  const buscador = app.querySelector("#buscador");
+  buscador.oninput = () => {
+    const t = buscador.value.trim().toLowerCase();
+    grid.querySelectorAll("[data-i]").forEach((btn) => { btn.style.display = sels[+btn.dataset.i].pais.toLowerCase().includes(t) ? "" : "none"; });
+  };
+}
+
+function empezarRonda(modo, sel) {
+  const preguntas = modo === "mezcla" ? nuevaRondaMezcla() : nuevaRondaSeleccion(sel);
+  ir("ronda", { modo, sel, preguntas, idx: 0, aciertos: 0, respondida: false, registro: [] });
+}
+
+// ---------- pantalla: ronda ----------
+function pantallaRonda() {
+  const q = state.preguntas[state.idx];
+  const cat = CAT_INFO[q.categoria] || { emoji: "❓", label: q.categoria };
+  const pasos = Array.from({ length: PREGUNTAS_POR_RONDA }, (_, i) => {
+    const done = i < state.idx, cur = i === state.idx;
+    return `<span class="flex-1 h-1.5 rounded-full ${done ? "bg-cian" : cur ? "bg-white" : "bg-white/20"}"></span>`;
+  }).join("");
+  const opciones = q.opciones.map((op, i) => `
+    <button data-i="${i}" class="opt glass w-full text-left rounded-2xl px-5 py-4 font-semibold hover:bg-white/20 flex items-center gap-3">
+      <span class="grid place-items-center w-7 h-7 rounded-full bg-white/15 text-sm font-bold shrink-0">${"ABCD"[i]}</span><span>${esc(op)}</span>
+    </button>`).join("");
+  app.innerHTML = `
+    <div class="fade-in flex flex-col flex-1">
+      <div class="flex items-center justify-between text-xs font-bold text-white/80 mb-2">
+        <button data-act="salir" class="opt glass rounded-full px-3 py-1.5">✕ Salir</button>
+        <span class="tracking-[0.2em] uppercase text-sol">${esc(q.etapa)}</span>
+        <span class="tabular-nums">${state.idx + 1} / ${PREGUNTAS_POR_RONDA}</span>
+      </div>
+      <div class="flex gap-1.5 items-center mb-6">${pasos}<span class="ml-1 text-lg">🏆</span></div>
+      <div class="flex items-center gap-3 mb-4">
+        <img class="flag w-12 h-8" src="${esc(q.bandera)}" alt="${esc(q.pais)}">
+        <span class="font-extrabold text-lg">${esc(q.pais)}</span>
+        <span class="ml-auto glass rounded-full px-3 py-1 text-xs font-semibold">${cat.emoji} ${esc(cat.label)}</span>
+      </div>
+      <h2 class="text-xl sm:text-2xl font-extrabold leading-snug mb-6">${esc(q.enunciado)}</h2>
+      <div id="opciones" class="flex flex-col gap-3">${opciones}</div>
+      <div id="pie" class="mt-auto pt-6"></div>
+    </div>`;
+  app.querySelector('[data-act="salir"]').onclick = () => { if (confirm("¿Salir de la partida?")) ir("inicio"); };
+  const cont = app.querySelector("#opciones");
+  cont.querySelectorAll("[data-i]").forEach((btn) => { btn.onclick = () => responder(+btn.dataset.i, cont); });
+}
+
+function responder(elegida, cont) {
+  if (state.respondida) return;
+  state.respondida = true;
+  const q = state.preguntas[state.idx];
+  const acierto = elegida === q.correcta;
+  if (acierto) state.aciertos++;
+
+  // Registrar para el resumen del resultado.
+  state.registro.push({
+    etapa: q.etapa, enunciado: q.enunciado, pais: q.pais, bandera: q.bandera,
+    elegidaText: q.opciones[elegida], correctaText: q.opciones[q.correcta], acierto,
+  });
+
+  cont.querySelectorAll("[data-i]").forEach((btn) => {
+    const i = +btn.dataset.i;
+    btn.classList.remove("hover:bg-white/20"); btn.style.cursor = "default";
+    if (i === q.correcta) { btn.style.background = "rgba(34,197,94,.92)"; btn.style.borderColor = "rgba(34,197,94,1)"; btn.classList.add("pop"); }
+    else if (i === elegida) { btn.style.background = "rgba(244,63,94,.9)"; btn.style.borderColor = "rgba(244,63,94,1)"; btn.classList.add("shake"); }
+    else { btn.style.opacity = ".45"; }
+  });
+
+  const ultima = state.idx === PREGUNTAS_POR_RONDA - 1;
+  const ms = acierto ? 2200 : 3200; // más tiempo si falla, para ver la correcta
+  const pie = app.querySelector("#pie");
+  pie.innerHTML = `
+    <div class="fade-in flex items-center gap-3">
+      <span class="text-lg font-extrabold ${acierto ? "text-green-300" : "text-rose-300"}">${acierto ? "✓ ¡Correcto!" : "✗ Fallaste"}</span>
+      <button id="next" class="opt ml-auto relative overflow-hidden rounded-2xl px-6 py-3 font-extrabold text-noche" style="background:linear-gradient(90deg,#FFE45E,#FFB627)">
+        <span class="relative z-10">${ultima ? "Ver resultado" : "Siguiente →"}</span>
+        <span class="absolute left-0 bottom-0 h-1.5 bg-noche/40 cuenta" style="animation-duration:${ms}ms"></span>
+      </button>
+    </div>`;
+  pie.querySelector("#next").onclick = avanzar;
+  state.timer = setTimeout(avanzar, ms); // avance automático
+}
+
+function avanzar() {
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  if (state.pantalla !== "ronda") return;
+  if (state.idx === PREGUNTAS_POR_RONDA - 1) return ir("resultado");
+  state.idx++; state.respondida = false; render();
+}
+
+// ---------- pantalla: resultado ----------
+function pantallaResultado() {
+  const a = state.aciertos;
+  const h = HITOS[a];
+  const subtitulo = state.modo === "mezcla" ? "Reto mezcla" : esc(state.sel.pais);
+  const filas = state.registro.map((r) => `
+    <div class="glass rounded-xl px-3 py-2.5 flex items-start gap-3 ${r.acierto ? "" : "ring-1 ring-rose-400/40"}">
+      <span class="text-lg leading-6 shrink-0">${r.acierto ? "✅" : "❌"}</span>
+      <div class="min-w-0 flex-1">
+        <div class="text-[11px] uppercase tracking-wider text-white/55 font-bold">${esc(r.etapa)} · ${esc(r.pais)}</div>
+        <div class="text-sm font-semibold leading-snug">${esc(r.enunciado)}</div>
+        ${r.acierto ? "" : `<div class="text-xs mt-1 leading-snug"><span class="text-rose-300">Tú: ${esc(r.elegidaText)}</span> · <span class="text-green-300">Correcta: ${esc(r.correctaText)}</span></div>`}
+      </div>
+    </div>`).join("");
+
+  app.innerHTML = `
+    <div class="fade-in flex flex-col items-center text-center pb-8">
+      <div class="text-7xl sm:text-8xl pop mt-4">${h.emoji}</div>
+      <div class="mt-4 text-sm font-bold tracking-[0.2em] uppercase text-white/70">${subtitulo}</div>
+      <h1 class="titulo text-4xl sm:text-5xl font-black mt-2">${h.titulo}</h1>
+      <p class="text-white/85 mt-2 text-lg">${h.sub}</p>
+      <div class="glass rounded-3xl px-10 py-5 mt-6">
+        <div class="text-6xl font-black tabular-nums"><span class="grad-text">${a}</span><span class="text-white/60 text-4xl">/${PREGUNTAS_POR_RONDA}</span></div>
+        <div class="text-white/70 text-sm font-semibold mt-1">aciertos</div>
+      </div>
+
+      <div class="w-full max-w-xl mt-8 text-left">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-white/60 mb-3 text-center">Tus respuestas</h3>
+        <div class="flex flex-col gap-2">${filas}</div>
+      </div>
+
+      <div class="w-full max-w-md mt-8">
+        <div class="text-sm font-bold uppercase tracking-wider text-white/60 mb-3">Comparte tu resultado</div>
+        <div class="grid grid-cols-3 gap-3">
+          <button data-red="whatsapp" class="opt rounded-2xl py-3 font-bold flex flex-col items-center gap-1" style="background:#25D366;color:#06321c"><span class="text-2xl">💬</span><span class="text-xs">WhatsApp</span></button>
+          <button data-red="x" class="opt rounded-2xl py-3 font-bold flex flex-col items-center gap-1 text-white" style="background:#111"><span class="text-2xl">𝕏</span><span class="text-xs">X</span></button>
+          <button data-red="telegram" class="opt rounded-2xl py-3 font-bold flex flex-col items-center gap-1" style="background:#229ED9;color:#04263a"><span class="text-2xl">✈️</span><span class="text-xs">Telegram</span></button>
+        </div>
+        <button data-act="img" class="opt glass rounded-xl w-full py-3 mt-3 font-semibold text-sm">📸 Descargar imagen del resultado</button>
+      </div>
+
+      <div class="w-full max-w-md mt-7 flex flex-col gap-3">
+        <button data-act="repe" class="opt rounded-2xl py-4 font-extrabold text-noche" style="background:linear-gradient(90deg,#FFE45E,#FFB627)">🔁 Jugar otra vez</button>
+        ${state.modo === "seleccion" ? `<button data-act="otra" class="opt glass rounded-2xl py-4 font-bold">🌍 Cambiar de selección</button>` : ""}
+        <button data-act="inicio" class="opt glass rounded-2xl py-4 font-bold">🏠 Inicio</button>
+      </div>
+    </div>`;
+
+  app.querySelectorAll("[data-red]").forEach((b) => { b.onclick = () => compartirRed(b.dataset.red); });
+  app.querySelector('[data-act="img"]').onclick = descargarImagen;
+  app.querySelector('[data-act="repe"]').onclick = () => empezarRonda(state.modo, state.sel);
+  app.querySelector('[data-act="inicio"]').onclick = () => ir("inicio");
+  const otra = app.querySelector('[data-act="otra"]');
+  if (otra) otra.onclick = () => ir("selector");
+}
+
+// ---------- compartir ----------
+function resumenTexto() {
+  const linea = state.registro.map((r) => (r.acierto ? "✅" : "❌")).join("");
+  const quien = state.modo === "mezcla" ? "el Reto mezcla" : state.sel.pais;
+  return `🏆 Trivial Mundial 2026\n${HITOS[state.aciertos].titulo} con ${quien} — ${state.aciertos}/7\n${linea}\n¿Puedes superarme?`;
+}
+function enlaceCompartir(red) {
+  const u = new URL(location.href);
+  u.hash = ""; u.search = "";
+  u.searchParams.set("utm_source", red);
+  u.searchParams.set("utm_medium", "social");
+  u.searchParams.set("utm_campaign", "share_resultado");
+  return u.toString();
+}
+function abrirRed(red) {
+  const txt = resumenTexto();
+  const url = enlaceCompartir(red);
+  let dest;
+  if (red === "whatsapp") dest = "https://wa.me/?text=" + encodeURIComponent(txt + "\n" + url);
+  else if (red === "telegram") dest = "https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(txt);
+  else dest = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(txt) + "&url=" + encodeURIComponent(url);
+  window.open(dest, "_blank", "noopener");
+}
+
+// Imagen del resultado (canvas) con marcador y todas las respuestas.
+function generarImagenBlob() {
+  return new Promise((resolve) => {
+    const W = 1080, H = 1350;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, "#3a1078"); g.addColorStop(.5, "#7B2FF7"); g.addColorStop(1, "#9d1f8e");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const a = state.aciertos, h = HITOS[a];
+    const quien = state.modo === "mezcla" ? "Reto mezcla" : state.sel.pais;
+    x.textAlign = "center"; x.fillStyle = "#fff";
+    x.font = "800 34px system-ui"; x.fillText("TRIVIAL MUNDIAL 2026", W / 2, 95);
+    x.font = "120px system-ui"; x.fillText(h.emoji, W / 2, 250);
+    x.font = "800 66px system-ui"; x.fillText(h.titulo, W / 2, 330);
+    x.font = "600 40px system-ui"; x.fillStyle = "rgba(255,255,255,.9)";
+    x.fillText(`${quien} · ${a}/7 aciertos`, W / 2, 392);
+    x.strokeStyle = "rgba(255,255,255,.2)"; x.beginPath(); x.moveTo(90, 440); x.lineTo(W - 90, 440); x.stroke();
+    x.textAlign = "left";
+    let y = 510;
+    state.registro.forEach((r) => {
+      x.font = "44px system-ui"; x.fillText(r.acierto ? "✅" : "❌", 90, y);
+      x.font = "700 24px system-ui"; x.fillStyle = "rgba(255,255,255,.6)";
+      x.fillText(`${r.etapa.toUpperCase()} · ${r.pais.toUpperCase()}`, 165, y - 24);
+      x.font = "600 32px system-ui"; x.fillStyle = "#fff";
+      x.fillText(trunc(r.enunciado, 44), 165, y + 14);
+      y += 108;
+    });
+    x.textAlign = "center"; x.font = "600 30px system-ui"; x.fillStyle = "rgba(255,255,255,.8)";
+    x.fillText("Juega en " + location.host, W / 2, H - 55);
+    c.toBlob((b) => resolve(b), "image/png");
+  });
+}
+
+async function compartirRed(red) {
+  const blob = await generarImagenBlob().catch(() => null);
+  const file = blob ? new File([blob], "trivial-mundial-2026.png", { type: "image/png" }) : null;
+  // Móvil: comparte la IMAGEN + texto + enlace por la hoja nativa (eliges la app).
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: resumenTexto(), url: enlaceCompartir(red) }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  // Escritorio: abre la red con texto + enlace (la imagen se obtiene con el botón "Descargar imagen").
+  abrirRed(red);
+}
+
+async function descargarImagen() {
+  const blob = await generarImagenBlob();
+  const file = new File([blob], "trivial-mundial-2026.png", { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: resumenTexto(), url: enlaceCompartir("imagen") }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "trivial-mundial-2026.png"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+// ---------- arranque ----------
+function pantallaError(msg) {
+  app.innerHTML = `
+    <div class="flex-1 flex flex-col items-center justify-center text-center fade-in">
+      <div class="text-6xl mb-4">📡</div>
+      <h2 class="text-2xl font-black mb-2">No pude cargar las preguntas</h2>
+      <p class="text-white/80 max-w-md">${esc(msg)}</p>
+      <p class="text-white/60 text-sm mt-4 max-w-md">Si abriste el archivo directamente (file://), sírvelo con un servidor estático, p. ej.:</p>
+      <code class="glass rounded-lg px-4 py-2 mt-2 text-cian text-sm">python3 -m http.server</code>
+    </div>`;
+}
+
+async function init() {
+  app.innerHTML = `<div class="flex-1 grid place-items-center"><div class="text-center fade-in"><div class="text-5xl animate-pulse">⚽</div><p class="mt-3 text-white/70">Cargando el Mundial…</p></div></div>`;
+  try {
+    const res = await fetch(FICHERO);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    DATA = await res.json();
+    if (!DATA.selecciones || !DATA.selecciones.length) throw new Error("Datos vacíos");
+    ir("inicio");
+  } catch (e) { pantallaError(e.message || String(e)); }
+}
+
+init();
+</script>
+</body>
+</html>
