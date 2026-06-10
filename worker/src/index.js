@@ -10,7 +10,7 @@
 
 import { ImageResponse, loadGoogleFont } from "workers-og";
 
-const JUEGO = "https://spaceb0m.github.io/trivial-mundial-2026/";
+const JUEGO = "https://trivial-mundial-2026.spacebom.com/";
 
 const DESENLACES = {
   C: { titulo: "¡Campeón del Mundo!", accent: "#FFD24A" },
@@ -46,7 +46,7 @@ function ogHtml(d) {
       <div style="display:flex;font-size:92px;font-weight:800;line-height:1.05;margin-top:6px;color:${d.accent};">${esc(d.titulo)}</div>
       <div style="display:flex;margin-top:36px;">${dots}</div>
     </div>
-    <div style="display:flex;margin-top:32px;font-size:26px;color:rgba(255,255,255,0.7);">spaceb0m.github.io/trivial-mundial-2026</div>
+    <div style="display:flex;margin-top:32px;font-size:26px;color:rgba(255,255,255,0.7);">trivial-mundial-2026.spacebom.com</div>
   </div>`;
 }
 
@@ -58,7 +58,7 @@ export default {
 
     if (url.pathname === "/og") {
       const texto =
-        "TRIVIAL MUNDIAL 2026 aciertos spaceb0m.github.io/trivial-mundial-2026 " +
+        "TRIVIAL MUNDIAL 2026 aciertos trivial-mundial-2026.spacebom.com " +
         d.p + " " + d.titulo +
         " 0123456789/¡!¿?·ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
       let fonts = [];
