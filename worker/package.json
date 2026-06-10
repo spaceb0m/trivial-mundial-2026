@@ -1,0 +1,8 @@
+{
+  "name": "trivial-mundial-og",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy", "dev": "wrangler dev" },
+  "dependencies": { "workers-og": "latest" },
+  "devDependencies": { "wrangler": "latest" }
+}
