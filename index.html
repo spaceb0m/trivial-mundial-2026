@@ -420,9 +420,10 @@ function codigoDesenlace() {
 // y este redirige a la persona al juego conservando los utm.
 function enlaceCompartir(red) {
   const quien = state.modo === "mezcla" ? "Reto mezcla" : state.sel.pais;
-  const r = state.registro.map((x) => (x.acierto ? "1" : "0")).join("");
+  // Lista de preguntas para que la imagen del Worker muestre el mismo detalle que en móvil.
+  const lista = JSON.stringify(state.registro.map((x) => [x.acierto ? 1 : 0, x.pais, x.enunciado]));
   const q = new URLSearchParams({
-    p: quien, o: codigoDesenlace(), a: String(state.aciertos), n: String(state.registro.length), r,
+    p: quien, o: codigoDesenlace(), a: String(state.aciertos), n: String(state.registro.length), q: lista,
     utm_source: red, utm_medium: "social", utm_campaign: "share_resultado",
   });
   return WORKER_SHARE + "?" + q.toString();
