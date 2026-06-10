@@ -487,16 +487,18 @@ function generarImagenBlob() {
   });
 }
 
+const ES_MOVIL = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 function compartirRed(red) {
   const blob = state.shareBlob || null;
   const file = blob ? new File([blob], "trivial-mundial-2026.png", { type: "image/png" }) : null;
-  // Móvil / navegadores compatibles: comparte la imagen completa + texto + enlace de forma nativa.
-  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+  // SOLO en móvil: hoja nativa con la imagen completa adjunta (ahí sí aparecen WhatsApp/X/Telegram).
+  if (ES_MOVIL && file && navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({ files: [file], text: resumenTexto(true), url: enlaceCompartir(red) }).catch(() => {});
     return;
   }
-  // Escritorio: abre la red con el enlace; su vista previa muestra la imagen del resultado
-  // (generada por el Worker como og:image). Síncrono para no perder el gesto del clic.
+  // Escritorio: abre la red CONCRETA (no la hoja genérica de macOS, que no incluye WhatsApp).
+  // La vista previa del enlace muestra la imagen del resultado (og:image del Worker).
   window.open(intentURL(red), "_blank", "noopener");
 }
 
