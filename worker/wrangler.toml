@@ -2,3 +2,9 @@ name = "trivial-mundial-og"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
+
+# El Worker atiende /s y /og en el dominio del juego; el resto lo sirve GitHub Pages.
+routes = [
+  { pattern = "trivial-mundial-2026.spacebom.com/s*", zone_name = "spacebom.com" },
+  { pattern = "trivial-mundial-2026.spacebom.com/og*", zone_name = "spacebom.com" },
+]

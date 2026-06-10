@@ -410,8 +410,9 @@ function resumenTexto(conEmojis) {
   const oks = state.registro.filter((r) => r.acierto).length;
   return `Trivial Mundial 2026\n${d.titulo} con ${quien} (${oks}/${state.registro.length} aciertos)\n¿Puedes superarme?`;
 }
-// Servicio que sirve la página de compartir con og:image dinámico (Cloudflare Worker).
-const WORKER_SHARE = "https://trivial-mundial-og.david-ffd.workers.dev/s";
+// Página de compartir con og:image dinámico: la atiende el Worker en el propio dominio
+// (ruta /s), de modo que el enlace compartido lleva tu marca y muestra la imagen.
+const WORKER_SHARE = "https://trivial-mundial-2026.spacebom.com/s";
 function codigoDesenlace() {
   if (state.campeon) return "C";
   return ({ "Fase de grupos": "G", "Octavos de final": "O", "Cuartos de final": "Q", "Semifinal": "S", "Final": "F" })[state.eliminadoEn] || "C";
