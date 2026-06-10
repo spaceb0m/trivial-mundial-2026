@@ -108,7 +108,7 @@ function toast(msg) {
     document.body.appendChild(t);
   }
   t.textContent = msg; t.style.opacity = "1";
-  clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = "0"; }, 3800);
+  clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = "0"; }, 6000);
 }
 
 // Memoria de preguntas vistas (para no repetir hasta agotar el pool).
@@ -385,6 +385,11 @@ function pantallaResultado() {
       </div>
     </div>`;
 
+  // Pre-genera la imagen para que al pulsar compartir esté lista al instante
+  // (evita el 'await' antes de abrir la ventana, causa del bloqueo de pop-ups).
+  state.shareBlob = null;
+  generarImagenBlob().then((b) => { state.shareBlob = b; }).catch(() => {});
+
   app.querySelectorAll("[data-red]").forEach((b) => { b.onclick = () => compartirRed(b.dataset.red); });
   app.querySelector('[data-act="img"]').onclick = descargarImagen;
   app.querySelector('[data-act="repe"]').onclick = () => empezarRonda(state.modo, state.sel);
@@ -394,11 +399,16 @@ function pantallaResultado() {
 }
 
 // ---------- compartir ----------
-function resumenTexto() {
+function resumenTexto(conEmojis) {
   const d = desenlace();
-  const linea = state.registro.map((r) => (r.acierto ? "✅" : "❌")).join("");
   const quien = state.modo === "mezcla" ? "el Reto mezcla" : state.sel.pais;
-  return `🏆 Trivial Mundial 2026\n${d.titulo} con ${quien}\n${linea}\n¿Puedes superarme?`;
+  if (conEmojis) {
+    const linea = state.registro.map((r) => (r.acierto ? "✅" : "❌")).join("");
+    return `🏆 Trivial Mundial 2026\n${d.titulo} con ${quien}\n${linea}\n¿Puedes superarme?`;
+  }
+  // Versión plana (sin emojis) para WhatsApp en escritorio, que los corrompe.
+  const oks = state.registro.filter((r) => r.acierto).length;
+  return `Trivial Mundial 2026\n${d.titulo} con ${quien} (${oks}/${state.registro.length} aciertos)\n¿Puedes superarme?`;
 }
 function enlaceCompartir(red) {
   const u = new URL(location.href);
@@ -408,14 +418,12 @@ function enlaceCompartir(red) {
   u.searchParams.set("utm_campaign", "share_resultado");
   return u.toString();
 }
-function abrirRed(red) {
-  const txt = resumenTexto();
+// WhatsApp: texto plano (evita mojibake en escritorio). X/Telegram: con emojis (los manejan bien).
+function intentURL(red) {
   const url = enlaceCompartir(red);
-  let dest;
-  if (red === "whatsapp") dest = "https://wa.me/?text=" + encodeURIComponent(txt + "\n" + url);
-  else if (red === "telegram") dest = "https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(txt);
-  else dest = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(txt) + "&url=" + encodeURIComponent(url);
-  window.open(dest, "_blank", "noopener");
+  if (red === "whatsapp") return "https://wa.me/?text=" + encodeURIComponent(resumenTexto(false) + "\n" + url);
+  if (red === "telegram") return "https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(resumenTexto(true));
+  return "https://twitter.com/intent/tweet?text=" + encodeURIComponent(resumenTexto(true)) + "&url=" + encodeURIComponent(url);
 }
 
 // Ajuste de línea de texto en canvas (hasta maxLines, con … si no cabe).
@@ -470,22 +478,32 @@ function generarImagenBlob() {
   });
 }
 
-async function compartirRed(red) {
-  const blob = await generarImagenBlob().catch(() => null);
+function compartirRed(red) {
+  const blob = state.shareBlob || null;
   const file = blob ? new File([blob], "trivial-mundial-2026.png", { type: "image/png" }) : null;
-  // 1) Web Share con imagen (móvil y navegadores de escritorio que lo soporten): imagen + texto + enlace nativos.
+  // 1) Web Share con imagen (móvil y navegadores de escritorio compatibles, p. ej. Safari):
+  //    comparte imagen + texto + enlace de forma nativa, igual que en móvil.
   if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], text: resumenTexto(), url: enlaceCompartir(red) }); return; }
-    catch (e) { if (e && e.name === "AbortError") return; }
+    navigator.share({ files: [file], text: resumenTexto(true), url: enlaceCompartir(red) }).catch(() => {});
+    return;
   }
-  // 2) Escritorio sin Web Share de ficheros: copia la imagen al portapapeles y abre la red con texto + enlace.
-  let copiada = false;
+  // 2) Escritorio sin Web Share de ficheros (p. ej. Chrome): copia la imagen al portapapeles
+  //    y abre la red. El orden importa para no perder el gesto del clic.
+  compartirDesktop(red, blob);
+}
+
+function compartirDesktop(red, blob) {
+  // Inicia la copia al portapapeles ANTES de abrir la ventana (el documento aún tiene foco).
+  let copia = null;
   if (blob && navigator.clipboard && window.ClipboardItem) {
-    try { await navigator.clipboard.write([new window.ClipboardItem({ "image/png": blob })]); copiada = true; } catch (e) {}
+    try { copia = navigator.clipboard.write([new window.ClipboardItem({ "image/png": blob })]); } catch (e) { copia = null; }
   }
-  abrirRed(red);
-  if (copiada) toast("📋 Imagen copiada: pégala en el chat con Ctrl/⌘ + V");
-  else if (blob) { descargarBlob(blob); toast("📷 Imagen descargada: adjúntala en el chat"); }
+  // Abre la red de forma SÍNCRONA dentro del clic: conserva la activación y evita el bloqueo de pop-ups.
+  window.open(intentURL(red), "_blank", "noopener");
+  if (copia) {
+    copia.then(() => toast("📋 Imagen copiada · pégala en el chat con ⌘/Ctrl + V y envía"))
+         .catch(() => { if (blob) { descargarBlob(blob); toast("📷 Imagen descargada · adjúntala al chat"); } });
+  } else if (blob) { descargarBlob(blob); toast("📷 Imagen descargada · adjúntala al chat"); }
 }
 
 function descargarBlob(blob) {
@@ -495,7 +513,7 @@ function descargarBlob(blob) {
 }
 
 async function descargarImagen() {
-  const blob = await generarImagenBlob();
+  const blob = state.shareBlob || await generarImagenBlob();
   const file = new File([blob], "trivial-mundial-2026.png", { type: "image/png" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], text: resumenTexto(), url: enlaceCompartir("imagen") }); return; }
