@@ -68,8 +68,11 @@
 "use strict";
 
 const FICHERO = "preguntas-mundial-2026.json";
+const FICHERO_HISTORIA = "preguntas-historia.json";
 const PREGUNTAS_POR_RONDA = 7;
 const SEEN_KEY = "tv26_seen";
+// Namespace fijo para el modo Historia en la memoria de preguntas vistas.
+const HIST_NS = "__hist__";
 
 // Camino al título: 3 partidos de grupos (fáciles) → eliminatorias (más difíciles).
 const ETAPAS = [
@@ -88,9 +91,16 @@ const CAT_INFO = {
   edades:       { emoji: "🎂", label: "Edades" },
   convocatoria: { emoji: "🌍", label: "Convocatoria" },
   agregados:    { emoji: "📊", label: "Plantilla" },
+  // Modo Leyendas del Mundial (datos históricos).
+  ediciones:    { emoji: "🏆", label: "Mundiales" },
+  palmares:     { emoji: "🥇", label: "Palmarés" },
+  goleadores:   { emoji: "⚽", label: "Goleadores" },
+  partidos:     { emoji: "🎽", label: "Veteranos" },
+  premios:      { emoji: "🏅", label: "Premios" },
 };
 
 let DATA = null;
+let DATA_HIST = null;
 let state = {};
 const app = document.getElementById("app");
 
@@ -135,8 +145,42 @@ function prep(q, sel, etapa) {
   const opciones = shuffle(q.opciones.slice());
   return {
     id: q.id, enunciado: q.enunciado, categoria: q.categoria, dificultad: q.dificultad, etapa,
-    opciones, correcta: opciones.indexOf(textoCorrecto), pais: sel.pais, bandera: sel.bandera,
+    opciones, correcta: opciones.indexOf(textoCorrecto),
+    pais: sel ? sel.pais : null, bandera: sel ? sel.bandera : null,
   };
+}
+
+// Etiqueta del modo en curso (resultado, compartir, imagen). Evita leer state.sel
+// cuando no hay selección (modos "mezcla" e "historia").
+function nombreModo() {
+  if (state.modo === "seleccion") return state.sel ? state.sel.pais : "";
+  if (state.modo === "historia") return "Leyendas del Mundial";
+  return "Reto mezcla";
+}
+
+// Modo Historia: pool global de preguntas (DATA_HIST.preguntas). Para cada etapa
+// elige una pregunta de la dificultad pedida, priorizando no vistas; usa ordenDif
+// como fallback. El seen-tracking comparte SEEN_KEY con un namespace propio.
+function nuevaRondaHistoria() {
+  const seen = loadSeen();
+  const pool = DATA_HIST.preguntas;
+  const usadas = new Set();
+  const ronda = ETAPAS.map((e) => {
+    let elegida = null;
+    for (const d of ordenDif(e.dif)) {
+      const cand = pool.filter((p) => p.dificultad === d && !usadas.has(p.id));
+      if (!cand.length) continue;
+      const frescas = cand.filter((p) => !seen.has(keyOf(HIST_NS, p.id)));
+      const fuente = frescas.length ? frescas : cand;
+      elegida = fuente[Math.floor(Math.random() * fuente.length)];
+      break;
+    }
+    usadas.add(elegida.id);
+    return prep(elegida, null, e.nombre);
+  });
+  ronda.forEach((q) => seen.add(keyOf(HIST_NS, q.id)));
+  saveSeen(seen);
+  return ronda;
 }
 
 function nuevaRondaSeleccion(sel) {
@@ -204,11 +248,17 @@ function pantallaInicio() {
           <span class="text-3xl">🎲</span>
           <span><span class="block text-lg font-extrabold">Reto mezcla</span><span class="block text-sm text-noche/70">7 preguntas de 7 selecciones al azar</span></span>
         </button>
+        <button data-act="historia" class="opt glass rounded-2xl p-5 text-left flex items-center gap-4 hover:bg-white/20">
+          <span class="text-3xl">🏛️</span>
+          <span><span class="block text-lg font-extrabold">Leyendas del Mundial</span><span class="block text-sm text-white/75">Recorre la historia: campeones, goleadores y premios</span></span>
+        </button>
       </div>
     </div>
     <footer class="text-center text-white/50 text-xs mt-8">Datos verificados de Wikipedia · Edades al 11 jun 2026</footer>`;
   app.querySelector('[data-act="selector"]').onclick = () => ir("selector");
   app.querySelector('[data-act="mezcla"]').onclick = () => empezarRonda("mezcla", null);
+  app.querySelector('[data-act="historia"]').onclick = () =>
+    cargarHistoria().then(() => empezarRonda("historia", null)).catch((e) => pantallaError(e.message || String(e)));
 }
 
 // ---------- pantalla: selector ----------
@@ -240,8 +290,21 @@ function pantallaSelector() {
 }
 
 function empezarRonda(modo, sel) {
-  const preguntas = modo === "mezcla" ? nuevaRondaMezcla() : nuevaRondaSeleccion(sel);
+  const preguntas = modo === "historia" ? nuevaRondaHistoria()
+    : modo === "mezcla" ? nuevaRondaMezcla()
+    : nuevaRondaSeleccion(sel);
   ir("ronda", { modo, sel, preguntas, idx: 0, aciertos: 0, respondida: false, registro: [], eliminado: false, eliminadoEn: null, campeon: false });
+}
+
+// Carga perezosa del dataset histórico (no penaliza el arranque del juego).
+async function cargarHistoria() {
+  if (DATA_HIST) return;
+  app.innerHTML = `<div class="flex-1 grid place-items-center"><div class="text-center fade-in"><div class="text-5xl animate-pulse">🏛️</div><p class="mt-3 text-white/70">Cargando la historia…</p></div></div>`;
+  const res = await fetch(FICHERO_HISTORIA);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  if (!data.preguntas || !data.preguntas.length) throw new Error("Datos vacíos");
+  DATA_HIST = data;
 }
 
 // ---------- pantalla: ronda ----------
@@ -265,8 +328,9 @@ function pantallaRonda() {
       </div>
       <div class="flex gap-1.5 items-center mb-5">${pasos}<span class="ml-1 text-lg">🏆</span></div>
       <div class="flex items-center gap-3 mb-4">
-        <img class="flag w-12 h-8" src="${esc(q.bandera)}" alt="${esc(q.pais)}">
-        <span class="font-extrabold text-lg">${esc(q.pais)}</span>
+        ${q.bandera
+          ? `<img class="flag w-12 h-8" src="${esc(q.bandera)}" alt="${esc(q.pais)}"><span class="font-extrabold text-lg">${esc(q.pais)}</span>`
+          : `<span class="glass rounded-full px-3 py-1.5 text-sm font-bold">🏛️ Historia</span>`}
         <span class="ml-auto glass rounded-full px-3 py-1 text-xs font-semibold">${cat.emoji} ${esc(cat.label)}</span>
       </div>
       <h2 class="text-xl sm:text-2xl font-extrabold leading-snug mb-5">${esc(q.enunciado)}</h2>
@@ -348,12 +412,12 @@ function desenlace() {
 // ---------- pantalla: resultado ----------
 function pantallaResultado() {
   const d = desenlace();
-  const subtitulo = state.modo === "mezcla" ? "Reto mezcla" : esc(state.sel.pais);
+  const subtitulo = esc(nombreModo());
   const filas = state.registro.map((r) => `
     <div class="glass rounded-xl px-3 py-2.5 flex items-start gap-3 ${r.acierto ? "" : "ring-1 ring-rose-400/40"}">
       <span class="text-lg leading-6 shrink-0">${r.acierto ? "✅" : "❌"}</span>
       <div class="min-w-0 flex-1">
-        <div class="text-[11px] uppercase tracking-wider text-white/55 font-bold">${esc(r.etapa)} · ${esc(r.pais)}</div>
+        <div class="text-[11px] uppercase tracking-wider text-white/55 font-bold">${esc(r.etapa)}${r.pais ? " · " + esc(r.pais) : ""}</div>
         <div class="text-sm font-semibold leading-snug">${esc(r.enunciado)}</div>
         ${r.acierto ? "" : `<div class="text-xs mt-1 leading-snug"><span class="text-rose-300">Tú: ${esc(r.elegidaText)}</span> · <span class="text-green-300">Correcta: ${esc(r.correctaText)}</span></div>`}
       </div>
@@ -408,7 +472,7 @@ function pantallaResultado() {
 // ---------- compartir ----------
 function resumenTexto(conEmojis) {
   const d = desenlace();
-  const quien = state.modo === "mezcla" ? "el Reto mezcla" : state.sel.pais;
+  const quien = nombreModo();
   if (conEmojis) {
     const linea = state.registro.map((r) => (r.acierto ? "✅" : "❌")).join("");
     return `🏆 Trivial Mundial 2026\n${d.titulo} con ${quien}\n${linea}\n¿Puedes superarme?`;
@@ -427,7 +491,7 @@ function codigoDesenlace() {
 // Enlace de compartir: pasa por el Worker (vista previa con la imagen del resultado)
 // y este redirige a la persona al juego conservando los utm.
 function enlaceCompartir(red) {
-  const quien = state.modo === "mezcla" ? "Reto mezcla" : state.sel.pais;
+  const quien = nombreModo();
   const r = state.registro.map((x) => (x.acierto ? "1" : "0")).join("");
   const q = new URLSearchParams({
     p: quien, o: codigoDesenlace(), a: String(state.aciertos), n: String(state.registro.length), r,
@@ -471,7 +535,7 @@ function generarImagenBlob() {
     const g = x.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, "#3a1078"); g.addColorStop(.5, "#7B2FF7"); g.addColorStop(1, "#9d1f8e");
     x.fillStyle = g; x.fillRect(0, 0, W, H);
-    const d = desenlace(), quien = state.modo === "mezcla" ? "Reto mezcla" : state.sel.pais;
+    const d = desenlace(), quien = nombreModo();
     x.textAlign = "center"; x.fillStyle = "#fff";
     x.font = "800 34px system-ui"; x.fillText("TRIVIAL MUNDIAL 2026", W / 2, 92);
     x.font = "118px system-ui"; x.fillText(d.emoji, W / 2, 240);
@@ -484,7 +548,7 @@ function generarImagenBlob() {
     rows.forEach((ro) => {
       x.font = "44px system-ui"; x.fillText(ro.r.acierto ? "✅" : "❌", pad, y + 4);
       x.font = "700 23px system-ui"; x.fillStyle = "rgba(255,255,255,.6)";
-      x.fillText(`${ro.r.etapa.toUpperCase()} · ${ro.r.pais.toUpperCase()}`, textX, y - 20);
+      x.fillText(ro.r.etapa.toUpperCase() + (ro.r.pais ? " · " + ro.r.pais.toUpperCase() : ""), textX, y - 20);
       x.font = "600 31px system-ui"; x.fillStyle = "#fff";
       ro.lines.forEach((ln, i) => x.fillText(ln, textX, y + 14 + i * 40));
       y += 30 + ro.lines.length * 40 + 28;

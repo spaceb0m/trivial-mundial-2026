@@ -11,7 +11,9 @@ Juego de trivial web sobre la **Copa Mundial de Fútbol de 2026** (Canadá · M�
 
 - **Camino al título**: cada partida son **7 preguntas** = los 7 partidos para ser campeón.
   Fase de grupos (×3) → Octavos → Cuartos → Semifinal → Final, con **dificultad creciente**.
-- **Dos modos**: jugar una selección concreta, o un **reto mezcla** de 7 selecciones al azar.
+- **Tres modos**: jugar una selección concreta, un **reto mezcla** de 7 selecciones al azar, o
+  **Leyendas del Mundial** (historia del torneo: campeones, palmarés, goleadores y premios de
+  1930 a 2022).
 - Feedback inmediato y avance automático. Al terminar, ves todas tus respuestas y puedes
   **compartir tu resultado** (con imagen) en WhatsApp, X y Telegram.
 
@@ -23,6 +25,9 @@ Juego de trivial web sobre la **Copa Mundial de Fútbol de 2026** (Canadá · M�
   (posición, edad, club), extraídos de Wikipedia.
 - **Preguntas** ([`preguntas-mundial-2026.json`](preguntas-mundial-2026.json)): 48 × 50 = 2.400,
   generadas por [`generar-preguntas.py`](generar-preguntas.py).
+- **Datos históricos** ([`mundial-historia.json`](mundial-historia.json)): ediciones, palmarés,
+  goleadores y premios de Wikipedia, que [`generar-preguntas-historia.py`](generar-preguntas-historia.py)
+  convierte en [`preguntas-historia.json`](preguntas-historia.json) para el modo *Leyendas*.
 - **Compartir con imagen** ([`worker/`](worker/)): un Cloudflare Worker (`workers-og`) genera al
   vuelo la imagen del resultado y la sirve como `og:image`, para que la vista previa del enlace
   muestre tu resultado en WhatsApp/X/Telegram (también en escritorio). Va en el propio dominio
@@ -55,7 +60,8 @@ archivo con `file://`.)
 ## Regenerar las preguntas
 
 ```bash
-python3 generar-preguntas.py
+python3 generar-preguntas.py            # banco de las 48 selecciones (modo actual)
+python3 generar-preguntas-historia.py   # banco del modo Leyendas del Mundial
 ```
 
-Es 100% reproducible (misma entrada → mismo `preguntas-mundial-2026.json`).
+Es 100% reproducible (misma entrada → mismo JSON de preguntas).
