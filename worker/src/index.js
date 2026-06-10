@@ -1,17 +1,19 @@
 // Worker de "imagen dinámica de enlace" para el Trivial Mundial 2026.
 //
 // Rutas (montadas en el propio dominio): trivial-mundial-2026.spacebom.com/og y /s
-//   /og?p=&o=&a=&n=&r=   -> PNG 1200x630 con el resultado (tarjeta ligera, sin fetches de emoji)
+//   /og?p=&o=&a=&n=&r=   -> PNG con el resultado (tarjeta ligera, sin fetches de emoji)
 //   /s?...               -> HTML con og:image dinámico + redirección al juego
 //
-// IMPORTANTE: la imagen NO usa emojis (que requieren fetches externos a un CDN y hacían
-// fallar el render para los crawlers). Solo depende de una fuente, con fallback. Así es
-// fiable y la URL queda corta (sin los textos de las preguntas).
+// PLAN FREE: el límite de CPU es 10 ms. Rasterizar a 1200x630 lo supera de forma
+// intermitente (error 1102 / exceededCpu). Por eso renderizamos a 600x315 (1/4 de
+// píxeles, ~1/4 de CPU) y además cacheamos el PNG en el edge: solo el primer render
+// paga el coste, el resto se sirve desde caché. La imagen de la URL principal es
+// estática (share-default.png en GitHub Pages), no pasa por aquí.
 
 import { ImageResponse, loadGoogleFont } from "workers-og";
 
 const JUEGO = "https://trivial-mundial-2026.spacebom.com/";
-const W = 1200, H = 630;
+const W = 600, H = 315; // 1.905:1, válido para Twitter/Facebook large image.
 
 const DESENLACES = {
   C: { titulo: "¡Campeón del Mundo!", accent: "#FFD24A" },
@@ -34,74 +36,76 @@ function datos(params) {
   return { p, a, n, r, titulo: d.titulo, accent: d.accent };
 }
 
-// Imagen OG por defecto: la que se ve al compartir la URL principal del juego.
-function ogHome() {
-  // Siete puntos = los 7 partidos del recorrido hasta el título.
-  const dots = Array.from({ length: 7 })
-    .map((_, i) => `<div style="display:flex;width:48px;height:48px;border-radius:48px;margin-right:16px;background:${i === 6 ? "#FFE45E" : "rgba(255,255,255,0.35)"};"></div>`)
-    .join("");
-  return `
-  <div style="display:flex;flex-direction:column;width:${W}px;height:${H}px;padding:80px;background-color:#5b21b6;background-image:linear-gradient(135deg,#3a1078 0%,#7B2FF7 55%,#9d1f8e 100%);font-family:Montserrat;color:white;">
-    <div style="display:flex;font-size:34px;font-weight:700;letter-spacing:9px;color:rgba(255,255,255,0.85);">TRIVIAL · MUNDIAL 2026</div>
-    <div style="display:flex;flex-direction:column;margin-top:auto;">
-      <div style="display:flex;font-size:104px;font-weight:800;line-height:1.0;">¿Llegas a</div>
-      <div style="display:flex;font-size:128px;font-weight:800;line-height:1.0;color:#FFE45E;">CAMPEÓN?</div>
-      <div style="display:flex;margin-top:36px;font-size:40px;color:rgba(255,255,255,0.92);">48 selecciones · 2.400 preguntas · 7 partidos</div>
-      <div style="display:flex;margin-top:40px;">${dots}</div>
-    </div>
-    <div style="display:flex;margin-top:36px;font-size:28px;color:rgba(255,255,255,0.7);">Juega en trivial-mundial-2026.spacebom.com</div>
-  </div>`;
-}
-
 function ogHtml(d) {
   const dots = (d.r || "")
     .split("")
-    .map((c) => `<div style="display:flex;width:54px;height:54px;border-radius:54px;margin-right:18px;background:${c === "1" ? "#22c55e" : "#f43f5e"};"></div>`)
+    .map((c) => `<div style="display:flex;width:27px;height:27px;border-radius:27px;margin-right:9px;background:${c === "1" ? "#22c55e" : "#f43f5e"};"></div>`)
     .join("");
   return `
-  <div style="display:flex;flex-direction:column;width:${W}px;height:${H}px;padding:72px;background-color:#5b21b6;background-image:linear-gradient(135deg,#3a1078 0%,#7B2FF7 55%,#9d1f8e 100%);font-family:Montserrat;color:white;">
-    <div style="display:flex;font-size:32px;font-weight:700;letter-spacing:7px;color:rgba(255,255,255,0.85);">TRIVIAL MUNDIAL 2026</div>
+  <div style="display:flex;flex-direction:column;width:${W}px;height:${H}px;padding:36px;background-color:#5b21b6;background-image:linear-gradient(135deg,#3a1078 0%,#7B2FF7 55%,#9d1f8e 100%);font-family:Montserrat;color:white;">
+    <div style="display:flex;font-size:16px;font-weight:700;letter-spacing:4px;color:rgba(255,255,255,0.85);">TRIVIAL MUNDIAL 2026</div>
     <div style="display:flex;flex-direction:column;margin-top:auto;">
-      <div style="display:flex;font-size:40px;color:rgba(255,255,255,0.9);">${esc(d.p)} · ${d.a}/${d.n} aciertos</div>
-      <div style="display:flex;font-size:96px;font-weight:800;line-height:1.04;margin-top:8px;color:${d.accent};">${esc(d.titulo)}</div>
-      <div style="display:flex;margin-top:38px;">${dots}</div>
+      <div style="display:flex;font-size:20px;color:rgba(255,255,255,0.9);">${esc(d.p)} · ${d.a}/${d.n} aciertos</div>
+      <div style="display:flex;font-size:48px;font-weight:800;line-height:1.04;margin-top:4px;color:${d.accent};">${esc(d.titulo)}</div>
+      <div style="display:flex;margin-top:19px;">${dots}</div>
     </div>
-    <div style="display:flex;margin-top:34px;font-size:28px;color:rgba(255,255,255,0.7);">Juega en trivial-mundial-2026.spacebom.com</div>
+    <div style="display:flex;margin-top:17px;font-size:14px;color:rgba(255,255,255,0.7);">Juega en trivial-mundial-2026.spacebom.com</div>
   </div>`;
 }
 
+// Imagen OG por defecto (fallback del Worker; la home usa el PNG estático).
+function ogHome() {
+  const dots = Array.from({ length: 7 })
+    .map((_, i) => `<div style="display:flex;width:24px;height:24px;border-radius:24px;margin-right:8px;background:${i === 6 ? "#FFE45E" : "rgba(255,255,255,0.35)"};"></div>`)
+    .join("");
+  return `
+  <div style="display:flex;flex-direction:column;width:${W}px;height:${H}px;padding:40px;background-color:#5b21b6;background-image:linear-gradient(135deg,#3a1078 0%,#7B2FF7 55%,#9d1f8e 100%);font-family:Montserrat;color:white;">
+    <div style="display:flex;font-size:17px;font-weight:700;letter-spacing:5px;color:rgba(255,255,255,0.85);">TRIVIAL · MUNDIAL 2026</div>
+    <div style="display:flex;flex-direction:column;margin-top:auto;">
+      <div style="display:flex;font-size:52px;font-weight:800;line-height:1.0;">¿Llegas a</div>
+      <div style="display:flex;font-size:64px;font-weight:800;line-height:1.0;color:#FFE45E;">CAMPEÓN?</div>
+      <div style="display:flex;margin-top:18px;font-size:20px;color:rgba(255,255,255,0.92);">48 selecciones · 2.400 preguntas · 7 partidos</div>
+      <div style="display:flex;margin-top:20px;">${dots}</div>
+    </div>
+    <div style="display:flex;margin-top:18px;font-size:14px;color:rgba(255,255,255,0.7);">Juega en trivial-mundial-2026.spacebom.com</div>
+  </div>`;
+}
+
+async function render(html, texto) {
+  let fonts = [];
+  try {
+    const data = await loadGoogleFont({ family: "Montserrat", weight: 800, text: texto });
+    fonts = [{ name: "Montserrat", data, weight: 800, style: "normal" }];
+  } catch (e) { /* fuente por defecto de workers-og */ }
+  return new ImageResponse(html, {
+    width: W, height: H, fonts,
+    headers: { "cache-control": "public, max-age=31536000, immutable" },
+  });
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const params = url.searchParams;
     const d = datos(params);
 
-    // Imagen OG por defecto para la URL principal (sin parámetros de resultado).
-    if (url.pathname === "/og-home") {
-      const texto = "TRIVIAL · MUNDIAL 2026 ¿Llegas a CAMPEÓN? 48 selecciones · 2.400 preguntas · 7 partidos Juega en trivial-mundial-2026.spacebom.com ¡!¿?ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let fonts = [];
-      try {
-        const data = await loadGoogleFont({ family: "Montserrat", weight: 800, text: texto });
-        fonts = [{ name: "Montserrat", data, weight: 800, style: "normal" }];
-      } catch (e) { /* fuente por defecto de workers-og */ }
-      return new ImageResponse(ogHome(), {
-        width: W, height: H, fonts,
-        headers: { "cache-control": "public, max-age=86400" },
-      });
-    }
+    // Imagen PNG: cacheamos en el edge por (path + parámetros de resultado), así solo
+    // el primer crawler paga el render y el resto (reintentos de Twitter/FB) va a caché.
+    if (url.pathname === "/og" || url.pathname === "/og-home") {
+      const home = url.pathname === "/og-home";
+      const cacheUrl = new URL(url.origin + url.pathname);
+      if (!home) ["p", "o", "a", "n", "r"].forEach((k) => { if (params.get(k)) cacheUrl.searchParams.set(k, params.get(k)); });
+      const cacheKey = new Request(cacheUrl.toString());
+      const cache = caches.default;
+      const hit = await cache.match(cacheKey);
+      if (hit) return hit;
 
-    if (url.pathname === "/og") {
-      const texto = "TRIVIAL MUNDIAL 2026 Juega en trivial-mundial-2026.spacebom.com aciertos · " +
-        d.p + " " + d.titulo + " 0123456789/¡!¿?ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      let fonts = [];
-      try {
-        const data = await loadGoogleFont({ family: "Montserrat", weight: 800, text: texto });
-        fonts = [{ name: "Montserrat", data, weight: 800, style: "normal" }];
-      } catch (e) { /* fuente por defecto de workers-og */ }
-      return new ImageResponse(ogHtml(d), {
-        width: W, height: H, fonts,
-        headers: { "cache-control": "public, max-age=86400" },
-      });
+      const texto = home
+        ? "TRIVIAL · MUNDIAL 2026 ¿Llegas a CAMPEÓN? 48 selecciones · 2.400 preguntas · 7 partidos Juega en trivial-mundial-2026.spacebom.com ¡!¿?ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        : "TRIVIAL MUNDIAL 2026 Juega en trivial-mundial-2026.spacebom.com aciertos · " + d.p + " " + d.titulo + " 0123456789/¡!¿?ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const resp = await render(home ? ogHome() : ogHtml(d), texto);
+      ctx.waitUntil(cache.put(cacheKey, resp.clone()));
+      return resp;
     }
 
     // Página de compartir: og:image dinámico + redirección al juego (conserva utm_*)
