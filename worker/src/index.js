@@ -34,6 +34,25 @@ function datos(params) {
   return { p, a, n, r, titulo: d.titulo, accent: d.accent };
 }
 
+// Imagen OG por defecto: la que se ve al compartir la URL principal del juego.
+function ogHome() {
+  // Siete puntos = los 7 partidos del recorrido hasta el título.
+  const dots = Array.from({ length: 7 })
+    .map((_, i) => `<div style="display:flex;width:48px;height:48px;border-radius:48px;margin-right:16px;background:${i === 6 ? "#FFE45E" : "rgba(255,255,255,0.35)"};"></div>`)
+    .join("");
+  return `
+  <div style="display:flex;flex-direction:column;width:${W}px;height:${H}px;padding:80px;background-color:#5b21b6;background-image:linear-gradient(135deg,#3a1078 0%,#7B2FF7 55%,#9d1f8e 100%);font-family:Montserrat;color:white;">
+    <div style="display:flex;font-size:34px;font-weight:700;letter-spacing:9px;color:rgba(255,255,255,0.85);">TRIVIAL · MUNDIAL 2026</div>
+    <div style="display:flex;flex-direction:column;margin-top:auto;">
+      <div style="display:flex;font-size:104px;font-weight:800;line-height:1.0;">¿Llegas a</div>
+      <div style="display:flex;font-size:128px;font-weight:800;line-height:1.0;color:#FFE45E;">CAMPEÓN?</div>
+      <div style="display:flex;margin-top:36px;font-size:40px;color:rgba(255,255,255,0.92);">48 selecciones · 2.400 preguntas · 7 partidos</div>
+      <div style="display:flex;margin-top:40px;">${dots}</div>
+    </div>
+    <div style="display:flex;margin-top:36px;font-size:28px;color:rgba(255,255,255,0.7);">Juega en trivial-mundial-2026.spacebom.com</div>
+  </div>`;
+}
+
 function ogHtml(d) {
   const dots = (d.r || "")
     .split("")
@@ -56,6 +75,20 @@ export default {
     const url = new URL(request.url);
     const params = url.searchParams;
     const d = datos(params);
+
+    // Imagen OG por defecto para la URL principal (sin parámetros de resultado).
+    if (url.pathname === "/og-home") {
+      const texto = "TRIVIAL · MUNDIAL 2026 ¿Llegas a CAMPEÓN? 48 selecciones · 2.400 preguntas · 7 partidos Juega en trivial-mundial-2026.spacebom.com ¡!¿?ÁÉÍÓÚÜÑáéíóúüabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let fonts = [];
+      try {
+        const data = await loadGoogleFont({ family: "Montserrat", weight: 800, text: texto });
+        fonts = [{ name: "Montserrat", data, weight: 800, style: "normal" }];
+      } catch (e) { /* fuente por defecto de workers-og */ }
+      return new ImageResponse(ogHome(), {
+        width: W, height: H, fonts,
+        headers: { "cache-control": "public, max-age=86400" },
+      });
+    }
 
     if (url.pathname === "/og") {
       const texto = "TRIVIAL MUNDIAL 2026 Juega en trivial-mundial-2026.spacebom.com aciertos · " +
