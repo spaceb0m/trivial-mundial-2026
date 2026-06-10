@@ -3,7 +3,7 @@
 Juego de trivial web sobre la **Copa Mundial de Fútbol de 2026** (Canadá · México · Estados Unidos).
 48 selecciones, 2.400 preguntas, **100% datos reales verificados**.
 
-**▶️ Jugar:** https://spaceb0m.github.io/trivial-mundial-2026/
+**▶️ Jugar:** https://trivial-mundial-2026.spacebom.com/
 
 ![World Cup 2026](https://img.shields.io/badge/Mundial-2026-7B2FF7) ![Selecciones](https://img.shields.io/badge/Selecciones-48-FF2E92) ![Preguntas](https://img.shields.io/badge/Preguntas-2400-00E5FF)
 
@@ -23,6 +23,17 @@ Juego de trivial web sobre la **Copa Mundial de Fútbol de 2026** (Canadá · M�
   (posición, edad, club), extraídos de Wikipedia.
 - **Preguntas** ([`preguntas-mundial-2026.json`](preguntas-mundial-2026.json)): 48 × 50 = 2.400,
   generadas por [`generar-preguntas.py`](generar-preguntas.py).
+- **Compartir con imagen** ([`worker/`](worker/)): un Cloudflare Worker (`workers-og`) genera al
+  vuelo la imagen del resultado y la sirve como `og:image`, para que la vista previa del enlace
+  muestre tu resultado en WhatsApp/X/Telegram (también en escritorio). Va en el propio dominio
+  (rutas `/s` y `/og`); el resto lo sirve GitHub Pages.
+
+## Despliegue
+
+- **Juego**: GitHub Pages (rama `main`, raíz) con dominio personalizado `trivial-mundial-2026.spacebom.com`.
+  Cada push a `main` lo reconstruye automáticamente.
+- **Worker de compartir**: `cd worker && npm install && npx wrangler deploy`
+  (requiere cuenta de Cloudflare con el dominio `spacebom.com`).
 
 ### Método anti-alucinación
 
